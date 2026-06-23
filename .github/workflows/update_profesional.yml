@@ -1,0 +1,35 @@
+name: Actualizar Dashboard Profesional
+
+on:
+  schedule:
+    - cron: '0 15 * * 1-5'  # Lunes-viernes 10 AM México (UTC-5)
+  workflow_dispatch:         # Permite correr manualmente desde GitHub
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests xlrd
+
+      - name: Ejecutar script de actualización
+        run: python update_profesional.py
+
+      - name: Crear index.html para GitHub Pages
+        run: cp dashboard_profesional.html index.html
+
+      - name: Commit y push
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: 'Auto-update: datos Profesional'
+          default_author: github_actions
+          add: 'dashboard_profesional.html index.html'
