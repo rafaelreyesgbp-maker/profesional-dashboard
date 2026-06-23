@@ -331,13 +331,17 @@ function switchMonth(num){const data=allData[String(num)];if(data)renderDash(dat
 function populateMonthSel(){const sel=document.getElementById('monthSel');const months=Object.keys(allData).map(Number).sort((a,b)=>a-b);sel.innerHTML=months.map(n=>'<option value="'+n+'">'+(MONTH_LABELS[n]||n)+'</option>').join('');if(months.length)sel.value=Math.max(...months);}
 function setStatus(msg,type){const bar=document.getElementById('statusBar');bar.className='status-bar'+(type==='error'?' error':type==='updating'?' updating':'');document.getElementById('statusMsg').textContent=msg;document.getElementById('spinner').style.display=type==='updating'?'inline-block':'none';}
 
-async function loadFromDrive(){
+async function loadFromDrive(silentOnError=false){
   const btn=document.getElementById('btnRefresh');btn.disabled=true;
-  setStatus('Conectando con Google Drive...','updating');
+  setStatus(silentOnError?'Actualizando en segundo plano...':'Conectando con Google Drive...','updating');
   try{
     const files=await driveListFiles();
     const xlsFiles=files.filter(f=>f.mimeType==='application/vnd.ms-excel'||(f.name||'').toLowerCase().endsWith('.xls'));
-    if(!xlsFiles.length){setStatus('No se encontraron archivos .xls en Drive.','error');btn.disabled=false;return;}
+    if(!xlsFiles.length){
+      if(!silentOnError)setStatus('No se encontraron archivos .xls en Drive.','error');
+      else setStatus('Datos pre-cargados · Drive sin archivos');
+      btn.disabled=false;return;
+    }
     const monthFiles=[];
     for(const f of xlsFiles){const name=(f.name||'').toLowerCase();const mn=Object.keys(MONTH_NAMES).find(m=>name.includes(m));if(mn)monthFiles.push({...f,num:MONTH_NAMES[mn],fileType:name.includes('retencion')?'retencion':'nomina'});}
     monthFiles.sort((a,b)=>a.num-b.num);
@@ -351,7 +355,14 @@ async function loadFromDrive(){
     const latest=Math.max(...Object.keys(newData).map(Number));
     renderDash(newData[String(latest)]);document.getElementById('monthSel').value=latest;
     setStatus('Actualizado - '+monthFiles.length+' archivos - '+lastUpdated);
-  }catch(e){setStatus('Error: '+e.message,'error');console.error(e);}
+  }catch(e){
+    console.error(e);
+    if(silentOnError&&currentMonth){
+      setStatus('Datos al '+(lastUpdated||'...')+' · Sin conexión a Drive');
+    }else{
+      setStatus('Error: '+e.message,'error');
+    }
+  }
   finally{btn.disabled=false;}
 }
 
@@ -374,13 +385,16 @@ function exportPNG(){html2canvas(document.querySelector('.content'),{scale:2,bac
 (function init(){
   const months=Object.keys(allData).map(Number).filter(n=>n>0);
   if(months.length){
-    // Mostrar datos pre-cargados mientras carga frescos
+    // Mostrar datos pre-cargados de inmediato
     populateMonthSel();
     renderDash(allData[String(Math.max(...months))]);
     if(lastUpdated)document.getElementById('footerUpdated').textContent='Actualizado: '+lastUpdated;
+    // Intentar actualizar en segundo plano; si falla, mantener datos pre-cargados
+    loadFromDrive(true);
+  }else{
+    // Sin datos pre-cargados: cargar desde Drive (mostrará error si falla)
+    loadFromDrive(false);
   }
-  // Siempre cargar datos frescos de Drive al entrar
-  loadFromDrive();
 })();
 </script>
 </body>
