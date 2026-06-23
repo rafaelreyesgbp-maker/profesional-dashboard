@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<title>Impuesto Profesional · Proyección Cierre – AAFY 2026</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+body { background: #F0EDE8; min-height: 100vh; }
+
+/* colors */
+:root {
+  --burgundy: #8B1A2E;
+  --gold: #C9A84C;
+  --teal: #1D9E75;
+  --navy: #0D1B3E;
+  --cream: #F5F2EE;
+}
+
+.header { background: var(--burgundy); color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.header h1 { font-size: 17px; font-weight: 800; letter-spacing: 0.3px; }
+.header .sub { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.header-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+select.month-sel {
+  background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4);
+  color: #fff; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; appearance: none; -webkit-appearance: none;
+}
+select.month-sel option { background: var(--burgundy); }
+
+.btn-refresh {
+  background: var(--gold); color: var(--navy); border: none; padding: 8px 16px;
+  border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  transition: opacity 0.2s;
+}
+.btn-refresh:hover { opacity: 0.85; }
+.btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.gold-bar { background: var(--gold); height: 4px; }
+
+.content { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+
+.status-bar {
+  background: #fff; border-radius: 8px; padding: 8px 16px; margin-bottom: 16px;
+  font-size: 11px; color: #666; display: flex; align-items: center; gap: 8px;
+  border-left: 3px solid var(--teal);
+}
+.status-bar.updating { border-left-color: var(--gold); }
+.status-bar.error { border-left-color: #E57373; }
+
+/* KPI cards */
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.kpi-card {
+  background: #fff; border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07); border-top: 4px solid var(--teal);
+}
+.kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #888; }
+.kpi-sub { font-size: 10px; color: #aaa; margin-top: 1px; margin-bottom: 6px; }
+.kpi-val { font-size: 24px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; }
+.kpi-note { font-size: 11px; color: #666; margin-top: 4px; }
+
+/* Section */
+.section { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--navy); opacity: 0.7; margin-bottom: 14px; }
+
+/* Progress bar */
+.progress-wrap { background: #F1F5F9; border-radius: 99px; height: 14px; overflow: hidden; margin: 6px 0 4px; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width 0.5s; }
+
+/* Segment cards */
+.seg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.seg-card { border-radius: 10px; padding: 14px 16px; border: 1.5px solid #ddd; }
+.seg-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.seg-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.seg-count { font-size: 11px; color: #666; }
+.seg-monto { font-size: 16px; font-weight: 800; margin-top: 6px; }
+
+/* Distribution */
+.dist-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+.dist-range { width: 100px; text-align: right; color: #555; flex-shrink: 0; }
+.dist-count { width: 60px; text-align: right; color: #888; flex-shrink: 0; }
+.dist-bar-wrap { flex: 1; background: #F1F5F9; border-radius: 4px; height: 20px; overflow: hidden; }
+.dist-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+.dist-amt { width: 110px; text-align: right; color: #444; font-weight: 600; flex-shrink: 0; }
+
+/* Table */
+.table-header { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.search-input {
+  flex: 1; min-width: 180px; padding: 8px 12px; border: 1px solid #ddd;
+  border-radius: 8px; font-size: 13px; outline: none;
+}
+.search-input:focus { border-color: var(--teal); }
+.seg-filter { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; cursor: pointer; background: #fff; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead th { background: var(--navy); color: #fff; padding: 10px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; }
+thead th:last-child { text-align: right; }
+tbody tr:nth-child(even) { background: #F8FAFB; }
+tbody tr:hover { background: #E8F7F2; }
+td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+td:last-child { text-align: right; font-weight: 700; }
+.rfc-code { font-family: monospace; font-size: 11px; color: var(--navy); }
+.seg-pill { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+
+tfoot tr { background: var(--cream) !important; }
+tfoot td { font-weight: 700; font-size: 13px; border-top: 2px solid #ddd; }
+
+.pagination { display: flex; gap: 4px; padding: 10px 0; align-items: center; justify-content: center; flex-wrap: wrap; }
+.page-btn {
+  padding: 4px 9px; border-radius: 5px; font-size: 12px; cursor: pointer; border: 1px solid #ddd;
+  background: #fff; color: #333;
+}
+.page-btn:disabled { background: #f5f5f5; color: #ccc; cursor: default; }
+.page-btn.active { background: var(--burgundy); color: #fff; border-color: var(--burgundy); font-weight: 700; }
+
+.footer { background: var(--navy); color: #fff; padding: 10px 24px; font-size: 11px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; opacity: 0.9; }
+
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.1); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.meta-badge { display: inline-block; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+
+/* Print / Export */
+@media print {
+  .header-right, .gold-bar, #omisos-section, .export-btn-row { display:none !important; }
+  body { background:#fff !important; }
+  .section { break-inside:avoid; box-shadow:none !important; }
+}
+.export-btn-row { display:flex; flex-direction:column; gap:6px; margin-top:8px; margin-bottom:16px; }
+.btn-export { background:#fff; color:#8B1A2E; border:1.5px solid #8B1A2E; border-radius:8px;
+  padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.btn-export:hover { background:#F5F2EE; }
+
+@media (max-width: 700px) {
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .content { padding: 12px 14px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header" id="mainHeader">
+  <div>
+    <h1>AAFY · Impuesto Profesional · Proyección de Cierre 2026</h1>
+    <div class="sub">Agencia de Administración Fiscal de Yucatán · Datos actualizados automáticamente</div>
+  </div>
+  <div class="header-right">
+    <select class="month-sel" id="monthSel" onchange="switchMonth(+this.value)"></select>
+    <button class="btn-refresh" id="btnRefresh" onclick="loadFromDrive()">
+      ↻ Actualizar
+    </button>
+  </div>
+</div>
+<div class="gold-bar"></div>
+
+<div class="content">
+
+  <!-- Status bar -->
+  <div class="status-bar updating" id="statusBar">
+    <span class="spinner" id="spinner"></span>
+    <span id="statusMsg">Cargando datos…</span>
+  </div>
+
+  <!-- Export buttons (hidden until data loads) -->
+  <div class="export-btn-row" id="exportRow" style="display:none">
+    <button class="btn-export" onclick="window.print()">🖨 Imprimir / PDF</button>
+    <button class="btn-export" onclick="exportPNG()">📷 Captura PNG</button>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card" style="border-top-color:var(--teal)">
+      <div class="kpi-label">Acumulado Real</div>
+      <div class="kpi-sub" id="kpiAcumSub">—</div>
+      <div class="kpi-val" id="kpiAcumVal">—</div>
+      <div class="kpi-note" id="kpiAcumNote"></div>
+    </div>
+    <div class="kpi-card" style="border-top-color:var(--gold)">
+      <div class="kpi-label">Meta del Mes</div>
+      <div class="kpi-sub" id="kpiMetaSub">—</div>
+      <div class="kpi-val" id="kpiMetaVal">—</div>
+      <div class="kpi-note" id="kpiMetaNote"></div>
+    </div>
+    <div class="kpi-card" id="kpiProyCard" style="border-top-color:#888">
+      <div class="kpi-label">Proyección Cierre</div>
+      <div class="kpi-sub" id="kpiProySub">—</div>
+      <div class="kpi-val" id="kpiProyVal">—</div>
+      <div class="kpi-note" id="kpiProyNote"></div>
+    </div>
+    <div class="kpi-card" style="border-top-color:#E57373">
+      <div class="kpi-label">Omisos Detectados</div>
+      <div class="kpi-sub" id="kpiOmisosSub">—</div>
+      <div class="kpi-val" id="kpiOmisosVal">—</div>
+      <div class="kpi-note" id="kpiOmisosNote"></div>
+    </div>
+  </div>
+
+  <!-- Progress section -->
+  <div class="section">
+    <div class="sec-title">Avance vs Meta</div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>Acumulado real</span>
+        <span id="pctAcumLabel">—</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-fill" id="progressAcum" style="width:0%;background:var(--teal)"></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span>Proyección de cierre (Alta + Media)</span>
+        <span id="pctProyLabel">—</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-fill" id="progressProy" style="width:0%;background:var(--burgundy)"></div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#999;margin-top:10px" id="periodDominant"></div>
+  </div>
+
+  <!-- Segments section -->
+  <div class="section">
+    <div class="sec-title">Segmentos de Omisos</div>
+    <div class="seg-grid" id="segGrid"></div>
+  </div>
+
+  <!-- Omisos table -->
+  <div class="section" id="omisos-section">
+    <div class="sec-title">Detalle de Omisos</div>
+    <div class="table-header">
+      <input class="search-input" id="searchInput" type="text" placeholder="Buscar RFC o contribuyente…" oninput="renderTable()">
+      <select class="seg-filter" id="segFilter" onchange="renderTable()">
+        <option value="">Todos los segmentos</option>
+        <option value="alta">Alta</option>
+        <option value="media">Media</option>
+        <option value="seguimiento">Seguimiento</option>
+        <option value="omisos_totales">Omisos Totales</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="omisosTable">
+        <thead>
+          <tr>
+            <th>RFC</th>
+            <th>Contribuyente</th>
+            <th>Segmento</th>
+            <th style="text-align:center">Meses Ref.</th>
+            <th>Períodos Pendientes</th>
+            <th>Estimado</th>
+          </tr>
+        </thead>
+        <tbody id="omisosBody"></tbody>
+        <tfoot id="omisosFoot"></tfoot>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+</div><!-- .content -->
+
+<div class="footer">
+  <span>AAFY · Impuesto Profesional · Proyección de Cierre 2026</span>
+  <span id="footerUpdated"></span>
+</div>
+
+<!-- SheetJS for in-browser XLS parsing (OLE2 / Excel 97-2003) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const FOLDER_ID = "1QWRO2A3eO4Aa5x95IVtIgGV_AkD1I_Uj";
+const API_KEY   = "AIzaSyAId7gthv7EEzmaTrfbt07FK4Kf-ii51uM";
+const METAS = {
+  1: 3156777,  2: 4481604,  3: 4842093,  4: 5323095,
+  5: 5324319,  6: 5471620,  7: 5415600,  8: 5315794,
+  9: 5577614, 10: 5656792, 11: 7134201, 12: 5783355
+};
+const MONTH_NAMES = {
+  "enero":1,"febrero":2,"marzo":3,"abril":4,"mayo":5,"junio":6,
+  "julio":7,"agosto":8,"septiembre":9,"octubre":10,"noviembre":11,"diciembre":12
+};
+const MONTH_LABELS = {
+  1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
+  7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
+};
+
+// ── Pre-computed data (replaced by GitHub Actions) ─────────────────────────────
+let allData = {};
+var lastUpdated = '';
+
+// ── App state ──────────────────────────────────────────────────────────────────
+let currentMonth = null;
+let allOmisos    = [];
+let currentPage  = 1;
+const PAGE_SIZE  = 50;
+
+// ── Formatters ─────────────────────────────────────────────────────────────────
+function fmt(n) {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency', currency: 'MXN', maximumFractionDigits: 0
+  }).format(n);
+}
+function fmtK(n) {
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+}
+
+// ── Period helpers ─────────────────────────────────────────────────────────────
+function prevPeriod(p) {
+  p = String(p);
+  let year = parseInt(p.slice(0, 4)), month = parseInt(p.slice(4));
+  month--;
+  if (month === 0) { month = 12; year--; }
+  return year + String(month).padStart(2, '0');
+}
+function formatPeriod(p) {
+  const s = String(p);
+  const labels = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  try { return labels[parseInt(s.slice(4, 6))] + '-' + s.slice(2, 4); } catch (e) { return s; }
+}
+
+// ── Google Drive helpers ───────────────────────────────────────────────────────
+async function driveListFiles() {
+  const url = 'https://www.googleapis.com/drive/v3/files'
+    + `?q=%27${FOLDER_ID}%27+in+parents+and+trashed%3Dfalse`
+    + `&fields=files(id,name,mimeType)&pageSize=20&key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Drive list: ' + r.status + ' ' + r.statusText);
+  return (await r.json()).files || [];
+}
+
+async function driveDownload(fileId) {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Drive download: ' + r.status + ' ' + r.statusText);
+  return await r.arrayBuffer();
+}
+
+// ── XLS parser (OLE2 via SheetJS) ─────────────────────────────────────────────
+// Columnas fijas del archivo Profesional (base 0):
+const COL_RFC     = 0;  // Columna A → RFC
+const COL_CONTRIB = 1;  // Columna B → Contribuyente
+const COL_PERIODO = 5;  // Columna F → Periodo
+const COL_M       = 12; // Columna M → (resta)
+const COL_O       = 14; // Columna O → (resta)
+const COL_R       = 17; // Columna R → (suma)
+// Recaudación = COL_R − COL_O − COL_M
+
+function _parseWorkbook(buf) {
+  let wb;
+  try {
+    wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+  } catch (e) {
+    console.error('SheetJS error:', e);
+    return [];
+  }
+  const ws   = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  // Encontrar la primera fila de datos: columna A con RFC (longitud ≥ 12)
+  let dataStart = -1;
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const val = String(rows[i][COL_RFC] || '').trim();
+    if (val.length >= 12 && !/^[a-zA-Z\s]+$/.test(val)) { dataStart = i; break; }
+  }
+  if (dataStart < 0) return [];
+
+  const records = [];
+  for (let i = dataStart; i < rows.length; i++) {
+    const row = rows[i];
+    const rfc = String(row[COL_RFC] || '').trim().toUpperCase();
+    if (!rfc || rfc.length < 12) continue;
+
+    let periodo = String(row[COL_PERIODO] || '').trim();
+    if (/^\d+\.?\d*$/.test(periodo)) periodo = String(parseInt(periodo));
+    if (periodo.length !== 6) continue;
+
+    const valR   = parseFloat(row[COL_R]) || 0;
+    const valO   = parseFloat(row[COL_O]) || 0;
+    const valM   = parseFloat(row[COL_M]) || 0;
+    const contrib = String(row[COL_CONTRIB] || '').trim();
+
+    records.push({ rfc, periodo, recaudacion: valR - valO - valM, contrib });
+  }
+  return records;
+}
+
+// ── Business logic (mirrors update_profesional.py) ────────────────────────────
+function getDominant(records) {
+  const totals = {};
+  for (const r of records) {
+    if (r.periodo) totals[r.periodo] = (totals[r.periodo] || 0) + r.recaudacion;
+  }
+  const keys = Object.keys(totals);
+  if (!keys.length) return null;
+  return keys.reduce((a, b) => totals[a] > totals[b] ? a : b);
+}
+
+function getMissingPeriods(paidSet, dominant, maxBack, stopBefore) {
+  const missing = [];
+  let p = String(dominant);
+  while (!paidSet.has(p)) {
+    if (stopBefore && parseInt(p) < parseInt(stopBefore)) break;
+    missing.push(p);
+    p = prevPeriod(p);
+    if (missing.length >= maxBack) break;
+  }
+  return missing;
+}
+
+function computeMonth(monthNum, allMonthData) {
+  const cur      = allMonthData[monthNum] || [];
+  const dominant = getDominant(cur);
+  const acumulado = cur.reduce((s, r) => s + r.recaudacion, 0);
+
+  // Reference months: up to 4 prior months with data
+  const refMonths = [];
+  for (let m = Math.max(1, monthNum - 4); m < monthNum; m++) {
+    if (allMonthData[m] && allMonthData[m].length) refMonths.push(m);
+  }
+  const nRef = refMonths.length;
+
+  // Global periods map: rfc -> {period -> max_recaudacion}
+  const globalPeriods = {};
+  const globalContrib = {};
+  for (let m = 1; m <= monthNum; m++) {
+    for (const r of allMonthData[m] || []) {
+      if (!globalPeriods[r.rfc]) globalPeriods[r.rfc] = {};
+      const gp = globalPeriods[r.rfc];
+      if (!gp[r.periodo] || r.recaudacion > gp[r.periodo]) gp[r.periodo] = r.recaudacion;
+      if (!globalContrib[r.rfc] && r.contrib) globalContrib[r.rfc] = r.contrib;
+    }
+  }
+
+  // Reference counts, amounts, 2026 periods
+  const rfcRefCount   = {};
+  const rfcRefPeriods = {};
+  const rfcContrib    = {};
+  const paid2026InRef = {};
+
+  for (const rm of refMonths) {
+    const seen = new Set();
+    for (const r of allMonthData[rm] || []) {
+      if (!rfcRefPeriods[r.rfc]) rfcRefPeriods[r.rfc] = {};
+      const rp = rfcRefPeriods[r.rfc];
+      if (!rp[r.periodo] || r.recaudacion > rp[r.periodo]) rp[r.periodo] = r.recaudacion;
+      if (String(r.periodo).startsWith('2026')) {
+        if (!paid2026InRef[r.rfc]) paid2026InRef[r.rfc] = new Set();
+        paid2026InRef[r.rfc].add(String(r.periodo));
+      }
+      if (!seen.has(r.rfc)) {
+        seen.add(r.rfc);
+        rfcRefCount[r.rfc] = (rfcRefCount[r.rfc] || 0) + 1;
+      }
+      if (!rfcContrib[r.rfc] && r.contrib) rfcContrib[r.rfc] = r.contrib;
+    }
+  }
+
+  // Candidates: ≥2 ref months OR ≥2 2026 periods in ref months
+  const candidates = new Set();
+  for (const [rfc, cnt] of Object.entries(rfcRefCount)) {
+    if (cnt >= 2) candidates.add(rfc);
+  }
+  for (const [rfc, ps] of Object.entries(paid2026InRef)) {
+    if (ps.size >= 2) candidates.add(rfc);
+  }
+
+  const omisos = [];
+  for (const rfc of candidates) {
+    const cnt         = rfcRefCount[rfc] || 0;
+    const periods2026 = paid2026InRef[rfc] || new Set();
+    if (cnt < 2 && periods2026.size < 2) continue;
+
+    const paidSet = new Set(Object.keys(globalPeriods[rfc] || {}));
+    if (!dominant || paidSet.has(dominant)) continue;
+
+    const has2026  = [...paidSet].some(p => p.startsWith('2026'));
+    const missing  = has2026
+      ? getMissingPeriods(paidSet, dominant, 12, null)
+      : getMissingPeriods(paidSet, dominant, 12, '202601');
+    if (!missing.length) continue;
+
+    const refAmounts = Object.values(rfcRefPeriods[rfc] || {});
+    if (!refAmounts.length) continue;
+
+    const avg = refAmounts.reduce((s, v) => s + v, 0) / refAmounts.length;
+    const est = avg * missing.length;
+
+    const seg = !has2026    ? 'omisos_totales'
+              : cnt >= nRef ? 'alta'
+              : cnt >= 3    ? 'media'
+              :               'seguimiento';
+
+    const contrib       = rfcContrib[rfc] || globalContrib[rfc] || '';
+    const pendingLabels = missing.map(formatPeriod);
+
+    omisos.push({
+      rfc, contrib, count: cnt,
+      avg: Math.round(est), nMissing: missing.length,
+      pending: pendingLabels, seg
+    });
+  }
+
+  omisos.sort((a, b) => b.avg - a.avg);
+
+  const esperado    = omisos
+    .filter(o => o.seg === 'alta' || o.seg === 'media')
+    .reduce((s, o) => s + o.avg, 0);
+  const proyeccion  = acumulado + esperado;
+  const meta        = METAS[monthNum] || 0;
+
+  // Build segments
+  const segments = {};
+  for (const o of omisos) {
+    if (!segments[o.seg]) segments[o.seg] = { count: 0, monto: 0, omisos: [] };
+    segments[o.seg].count++;
+    segments[o.seg].monto += o.avg;
+    segments[o.seg].omisos.push({
+      rfc: o.rfc, contrib: o.contrib, avg: o.avg,
+      count: o.count, nMissing: o.nMissing, pending: o.pending
+    });
+  }
+  for (const s of Object.values(segments)) {
+    s.monto = Math.round(s.monto);
+    s.omisos.sort((a, b) => b.avg - a.avg);
+  }
+
+  return {
+    mes_label:         MONTH_LABELS[monthNum] || String(monthNum),
+    mes_num:           monthNum,
+    meta,
+    dominant_period:   dominant ? parseInt(dominant) : 0,
+    ref_months:        refMonths,
+    acumulado_real:    Math.round(acumulado),
+    total_omisos:      omisos.length,
+    total_esperado:    Math.round(esperado),
+    proyeccion_cierre: Math.round(proyeccion),
+    meta_cruzada:      proyeccion >= meta,
+    pct_acumulado:     meta ? acumulado / meta * 100 : 0,
+    pct_proyeccion:    meta ? proyeccion / meta * 100 : 0,
+    segmentos:         segments,
+    omisos:            omisos.slice(0, 5000)
+  };
+}
+
+// ── Segment display config ─────────────────────────────────────────────────────
+const SEG_CONFIG = {
+  alta:           { label: 'Alta',           color: '#8B1A2E', bg: '#FFF0F2' },
+  media:          { label: 'Media',          color: '#C9A84C', bg: '#FFFBF0' },
+  seguimiento:    { label: 'Seguimiento',    color: '#1D9E75', bg: '#F0FBF7' },
+  omisos_totales: { label: 'Omisos Totales', color: '#666666', bg: '#F5F5F5' }
+};
+
+// ── Dashboard render ───────────────────────────────────────────────────────────
+function renderDash(data) {
+  if (!data) return;
+  currentMonth = data.mes_num;
+
+  // KPI: Acumulado
+  document.getElementById('kpiAcumSub').textContent  = (data.mes_label || '') + ' 2026';
+  document.getElementById('kpiAcumVal').textContent  = fmtK(data.acumulado_real || 0);
+  document.getElementById('kpiAcumNote').textContent = fmt(data.acumulado_real || 0);
+
+  // KPI: Meta
+  document.getElementById('kpiMetaSub').textContent  = 'Meta ' + (data.mes_label || '');
+  document.getElementById('kpiMetaVal').textContent  = fmtK(data.meta || 0);
+  document.getElementById('kpiMetaNote').textContent = fmt(data.meta || 0);
+
+  // KPI: Proyección
+  const pCard = document.getElementById('kpiProyCard');
+  pCard.style.borderTopColor = data.meta_cruzada ? 'var(--teal)' : '#E57373';
+  document.getElementById('kpiProySub').textContent  = data.meta_cruzada ? '✓ Supera meta' : '⚠ Bajo meta';
+  document.getElementById('kpiProyVal').textContent  = fmtK(data.proyeccion_cierre || 0);
+  document.getElementById('kpiProyNote').textContent = Math.round(data.pct_proyeccion || 0) + '% de la meta';
+
+  // KPI: Omisos
+  document.getElementById('kpiOmisosSub').textContent  = 'Total detectados';
+  document.getElementById('kpiOmisosVal').textContent  = (data.total_omisos || 0).toLocaleString('es-MX');
+  document.getElementById('kpiOmisosNote').textContent = 'Estimado ' + fmtK(data.total_esperado || 0);
+
+  // Progress bars
+  const pAcum = Math.min(100, data.pct_acumulado || 0);
+  const pProy = Math.min(100, data.pct_proyeccion || 0);
+  document.getElementById('progressAcum').style.width = pAcum + '%';
+  document.getElementById('progressProy').style.width = pProy + '%';
+  document.getElementById('pctAcumLabel').textContent = Math.round(pAcum) + '%';
+  document.getElementById('pctProyLabel').textContent = Math.round(pProy) + '%';
+
+  if (data.dominant_period) {
+    document.getElementById('periodDominant').textContent =
+      'Período dominante: ' + formatPeriod(data.dominant_period)
+      + ' · Meses de referencia: ' + (data.ref_months ? data.ref_months.length : 0);
+  }
+
+  // Segments
+  const segGrid = document.getElementById('segGrid');
+  segGrid.innerHTML = '';
+  for (const [key, cfg] of Object.entries(SEG_CONFIG)) {
+    const s = (data.segmentos || {})[key];
+    const card = document.createElement('div');
+    card.className = 'seg-card';
+    card.style.background   = cfg.bg;
+    card.style.borderColor  = cfg.color;
+    card.innerHTML = `
+      <div class="seg-badge" style="background:${cfg.color}">${cfg.label}</div>
+      <div class="seg-name">${cfg.label}</div>
+      <div class="seg-count">${s ? s.count : 0} contribuyentes</div>
+      <div class="seg-monto" style="color:${cfg.color}">${s ? fmtK(s.monto) : '$0'}</div>
+    `;
+    segGrid.appendChild(card);
+  }
+
+  // Update omisos list
+  allOmisos   = data.omisos || [];
+  currentPage = 1;
+  renderTable();
+
+  // Footer timestamp
+  if (lastUpdated) {
+    document.getElementById('footerUpdated').textContent = 'Actualizado: ' + lastUpdated;
+  }
+
+  document.getElementById('exportRow').style.display = 'flex';
+}
+
+// ── Table render ───────────────────────────────────────────────────────────────
+function renderTable() {
+  const q   = (document.getElementById('searchInput').value || '').toLowerCase();
+  const seg = document.getElementById('segFilter').value;
+
+  let rows = allOmisos;
+  if (q)   rows = rows.filter(o => o.rfc.toLowerCase().includes(q) || (o.contrib || '').toLowerCase().includes(q));
+  if (seg) rows = rows.filter(o => o.seg === seg);
+
+  const total    = rows.length;
+  const pages    = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  currentPage    = Math.min(currentPage, pages);
+  const start    = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('omisosBody');
+  tbody.innerHTML = '';
+  for (const o of pageRows) {
+    const cfg = SEG_CONFIG[o.seg] || SEG_CONFIG.seguimiento;
+    const tr  = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rfc-code">${o.rfc}</span></td>
+      <td>${o.contrib || '—'}</td>
+      <td><span class="seg-pill" style="background:${cfg.color};color:#fff">${cfg.label}</span></td>
+      <td style="text-align:center">${o.count || 0}</td>
+      <td style="font-size:11px;color:#555">${(o.pending || []).join(', ')}</td>
+      <td>${fmt(o.avg)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  const totalMonto = rows.reduce((s, o) => s + o.avg, 0);
+  document.getElementById('omisosFoot').innerHTML = `
+    <tr>
+      <td colspan="5">Total filtrado: ${total.toLocaleString('es-MX')} omisos</td>
+      <td>${fmt(totalMonto)}</td>
+    </tr>
+  `;
+
+  renderPagination(pages);
+}
+
+function renderPagination(pages) {
+  const container = document.getElementById('pagination');
+  container.innerHTML = '';
+  if (pages <= 1) return;
+
+  const add = (label, page, active, disabled) => {
+    const b = document.createElement('button');
+    b.className = 'page-btn' + (active ? ' active' : '');
+    b.textContent = label;
+    b.disabled    = !!disabled;
+    b.onclick     = () => { currentPage = page; renderTable(); };
+    container.appendChild(b);
+  };
+
+  add('«', 1,               false, currentPage === 1);
+  add('‹', currentPage - 1, false, currentPage === 1);
+  const s = Math.max(1, currentPage - 2);
+  const e = Math.min(pages, s + 4);
+  for (let p = s; p <= e; p++) add(String(p), p, p === currentPage, false);
+  add('›', currentPage + 1, false, currentPage === pages);
+  add('»', pages,           false, currentPage === pages);
+}
+
+// ── Month selector ─────────────────────────────────────────────────────────────
+function switchMonth(num) {
+  const data = allData[String(num)];
+  if (data) renderDash(data);
+  setStatus('Mostrando ' + (MONTH_LABELS[num] || num));
+}
+
+function populateMonthSel() {
+  const sel    = document.getElementById('monthSel');
+  const months = Object.keys(allData).map(Number).sort((a, b) => a - b);
+  sel.innerHTML = months.map(n =>
+    `<option value="${n}">${MONTH_LABELS[n] || n}</option>`
+  ).join('');
+  if (months.length) sel.value = Math.max(...months);
+}
+
+// ── Status bar helper ──────────────────────────────────────────────────────────
+function setStatus(msg, type) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status-bar'
+    + (type === 'error'    ? ' error'    : '')
+    + (type === 'updating' ? ' updating' : '');
+  document.getElementById('statusMsg').textContent = msg;
+  document.getElementById('spinner').style.display = type === 'updating' ? 'inline-block' : 'none';
+}
+
+// ── Load from Drive (browser real-time) ───────────────────────────────────────
+async function loadFromDrive() {
+  const btn = document.getElementById('btnRefresh');
+  btn.disabled = true;
+  setStatus('Conectando con Google Drive…', 'updating');
+
+  try {
+    const files    = await driveListFiles();
+    const xlsFiles = files.filter(f =>
+      f.mimeType === 'application/vnd.ms-excel' || (f.name || '').toLowerCase().endsWith('.xls')
+    );
+
+    if (!xlsFiles.length) {
+      setStatus('No se encontraron archivos .xls en la carpeta de Drive.', 'error');
+      btn.disabled = false;
+      return;
+    }
+
+    // Map filenames to month numbers
+    const monthFiles = [];
+    for (const f of xlsFiles) {
+      const name = (f.name || '').toLowerCase();
+      const monthName = Object.keys(MONTH_NAMES).find(m => name.includes(m));
+      if (monthName) monthFiles.push({ ...f, num: MONTH_NAMES[monthName] });
+    }
+    monthFiles.sort((a, b) => a.num - b.num);
+
+    // Download + parse each file
+    const allMonthData = {};
+    for (const f of monthFiles) {
+      setStatus('Descargando ' + f.name + '…', 'updating');
+      const buf  = await driveDownload(f.id);
+      const recs = _parseWorkbook(buf);
+      allMonthData[f.num] = recs;
+    }
+
+    setStatus('Calculando proyecciones…', 'updating');
+    const newData = {};
+    for (const num of Object.keys(allMonthData).map(Number).sort((a, b) => a - b)) {
+      newData[String(num)] = computeMonth(num, allMonthData);
+    }
+    allData     = newData;
+    lastUpdated = new Date().toLocaleString('es-MX');
+
+    populateMonthSel();
+    const latest = Math.max(...Object.keys(newData).map(Number));
+    renderDash(newData[String(latest)]);
+    document.getElementById('monthSel').value = latest;
+    setStatus(
+      'Actualizado · ' + monthFiles.length + ' meses cargados · ' + lastUpdated
+    );
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Export PNG ─────────────────────────────────────────────────────────────────
+function exportPNG() {
+  html2canvas(document.querySelector('.content'), {
+    scale: 2, backgroundColor: '#F0EDE8'
+  }).then(canvas => {
+    const a = document.createElement('a');
+    a.download = 'impuesto-profesional-'
+      + (currentMonth ? MONTH_LABELS[currentMonth] : '') + '-2026.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+(function init() {
+  const months = Object.keys(allData).map(Number).filter(n => n > 0);
+  if (months.length) {
+    populateMonthSel();
+    const latest = Math.max(...months);
+    renderDash(allData[String(latest)]);
+    setStatus(
+      lastUpdated
+        ? 'Datos al ' + lastUpdated
+        : 'Datos pre-cargados · Pulsa Actualizar para datos frescos'
+    );
+    if (lastUpdated) {
+      document.getElementById('footerUpdated').textContent = 'Actualizado: ' + lastUpdated;
+    }
+  } else {
+    setStatus('Sin datos · Cargando desde Google Drive…', 'updating');
+    loadFromDrive();
+  }
+})();
+</script>
+</body>
+</html>

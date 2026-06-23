@@ -59,9 +59,10 @@ def drive_download(file_id):
 COL_RFC     = 0   # Columna A → RFC
 COL_CONTRIB = 1   # Columna B → Contribuyente
 COL_PERIODO = 5   # Columna F → Periodo
+COL_M       = 12  # Columna M → (resta)
 COL_O       = 14  # Columna O → (resta)
 COL_R       = 17  # Columna R → (suma)
-# Recaudación = COL_R − COL_O
+# Recaudación = COL_R − COL_O − COL_M
 
 def parse_xls(file_bytes, month_num):
     try:
@@ -102,11 +103,12 @@ def parse_xls(file_bytes, month_num):
 
             val_r   = float(ws.cell_value(i, COL_R)) if ws.ncols > COL_R else 0.0
             val_o   = float(ws.cell_value(i, COL_O)) if ws.ncols > COL_O else 0.0
+            val_m   = float(ws.cell_value(i, COL_M)) if ws.ncols > COL_M else 0.0
             contrib = str(ws.cell_value(i, COL_CONTRIB)).strip() if ws.ncols > COL_CONTRIB else ""
 
             records.append({
                 "rfc": rfc, "periodo": periodo,
-                "recaudacion": val_r - val_o, "contrib": contrib
+                "recaudacion": val_r - val_o - val_m, "contrib": contrib
             })
         except Exception:
             continue
