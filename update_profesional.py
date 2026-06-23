@@ -5,9 +5,13 @@ Descarga archivos de nómina Profesional desde Google Drive,
 recalcula proyecciones y actualiza los datos embebidos en el HTML.
 """
 
-import json, re, sys, requests, xlrd
+import json, re, sys, requests, xlrd, unicodedata
 from datetime import datetime
 from collections import defaultdict
+
+def normalize(s):
+    """Elimina acentos y pasa a minúsculas para comparaciones robustas."""
+    return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii').lower()
 
 # ── Configuración ─────────────────────────────────────────────────
 API_KEY   = "AIzaSyAId7gthv7EEzmaTrfbt07FK4Kf-ii51uM"
@@ -37,7 +41,7 @@ def drive_list_files(folder_id):
         params={
             "q": f"'{folder_id}' in parents and trashed=false",
             "fields": "files(id,name,mimeType)",
-            "pageSize": 20,
+            "pageSize": 100,
             "key": API_KEY
         },
         timeout=30
@@ -311,12 +315,14 @@ def main():
 
     files = []
     for f in raw_files:
-        name = (f.get('name') or '').lower()
-        mime = f.get('mimeType', '')
+        name     = (f.get('name') or '').lower()
+        name_n   = normalize(f.get('name') or '')   # sin acentos
+        mime     = f.get('mimeType', '')
         if mime == 'application/vnd.ms-excel' or name.endswith('.xls'):
-            month_name = next((m for m in MONTH_NAMES if m in name), None)
+            month_name = next((m for m in MONTH_NAMES if m in name_n), None)
             if month_name:
-                file_type = 'retencion' if 'retencion' in name else 'nomina'
+                file_type = 'retencion' if 'retencion' in name_n else 'nomina'
+                print(f"  Detectado: {f['name']} → mes={month_name}, tipo={file_type}")
                 files.append({'id': f['id'], 'name': f['name'],
                                'num': MONTH_NAMES[month_name], 'type': file_type})
 
