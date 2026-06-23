@@ -12,7 +12,7 @@ from collections import defaultdict
 # ── Configuración ─────────────────────────────────────────────────
 API_KEY   = "AIzaSyAId7gthv7EEzmaTrfbt07FK4Kf-ii51uM"
 FOLDER_ID = "1QWRO2A3eO4Aa5x95IVtIgGV_AkD1I_Uj"
-HTML_FILE = "dashboard_profesional.html"
+HTML_FILE = "index.html"
 
 METAS = {
     1: 3156777,  2: 4481604,  3: 4842093,  4: 5323095,
@@ -54,66 +54,93 @@ def drive_download(file_id):
     resp.raise_for_status()
     return resp.content
 
-# ── XLS parsing ───────────────────────────────────────────────────
-# Columnas fijas del archivo Profesional (base 0):
-COL_RFC     = 0   # Columna A → RFC
-COL_CONTRIB = 1   # Columna B → Contribuyente
-COL_PERIODO = 5   # Columna F → Periodo
-COL_M       = 12  # Columna M → (resta)
-COL_O       = 14  # Columna O → (resta)
-COL_R       = 17  # Columna R → (suma)
-# Recaudación = COL_R − COL_O − COL_M
+# ── Columnas fijas (base 0) ───────────────────────────────────────
+# Archivo NÓMINA
+NOM_RFC     = 0   # Columna A
+NOM_CONTRIB = 1   # Columna B
+NOM_PERIODO = 5   # Columna F
+NOM_M       = 12  # Columna M (resta)
+NOM_O       = 14  # Columna O (resta)
+NOM_R       = 17  # Columna R (suma)
+# Recaudación nómina = R − O − M
 
-def parse_xls(file_bytes, month_num):
+# Archivo RETENCIÓN
+RET_RFC     = 0   # Columna A
+RET_CONTRIB = 1   # Columna B
+RET_PERIODO = 4   # Columna E
+RET_IMP     = 13  # Columna N (IMPUESTO)
+
+def _find_data_start(ws, rfc_col):
+    for i in range(min(20, ws.nrows)):
+        val = str(ws.cell_value(i, rfc_col)).strip()
+        if len(val) >= 12 and not val.replace(" ", "").isalpha():
+            return i
+    return -1
+
+def _parse_nomina(ws):
+    data_start = _find_data_start(ws, NOM_RFC)
+    if data_start < 0:
+        print("  No se encontró fila de datos (nómina)", file=sys.stderr)
+        return []
+    records = []
+    for i in range(data_start, ws.nrows):
+        try:
+            rfc = str(ws.cell_value(i, NOM_RFC)).strip().upper()
+            if not rfc or len(rfc) < 12:
+                continue
+            periodo_raw = ws.cell_value(i, NOM_PERIODO)
+            try:
+                periodo = str(int(float(str(periodo_raw))))
+            except Exception:
+                periodo = str(periodo_raw).strip()
+            if len(periodo) != 6:
+                continue
+            val_r   = float(ws.cell_value(i, NOM_R)) if ws.ncols > NOM_R else 0.0
+            val_o   = float(ws.cell_value(i, NOM_O)) if ws.ncols > NOM_O else 0.0
+            val_m   = float(ws.cell_value(i, NOM_M)) if ws.ncols > NOM_M else 0.0
+            contrib = str(ws.cell_value(i, NOM_CONTRIB)).strip() if ws.ncols > NOM_CONTRIB else ""
+            records.append({"rfc": rfc, "periodo": periodo,
+                             "recaudacion": val_r - val_o - val_m, "contrib": contrib})
+        except Exception:
+            continue
+    return records
+
+def _parse_retencion(ws):
+    data_start = _find_data_start(ws, RET_RFC)
+    if data_start < 0:
+        print("  No se encontró fila de datos (retención)", file=sys.stderr)
+        return []
+    records = []
+    for i in range(data_start, ws.nrows):
+        try:
+            rfc = str(ws.cell_value(i, RET_RFC)).strip().upper()
+            if not rfc or len(rfc) < 12:
+                continue
+            periodo_raw = ws.cell_value(i, RET_PERIODO)
+            try:
+                periodo = str(int(float(str(periodo_raw))))
+            except Exception:
+                periodo = str(periodo_raw).strip()
+            if len(periodo) != 6:
+                continue
+            imp     = float(ws.cell_value(i, RET_IMP)) if ws.ncols > RET_IMP else 0.0
+            contrib = str(ws.cell_value(i, RET_CONTRIB)).strip() if ws.ncols > RET_CONTRIB else ""
+            records.append({"rfc": rfc, "periodo": periodo,
+                             "recaudacion": imp, "contrib": contrib})
+        except Exception:
+            continue
+    return records
+
+def parse_xls(file_bytes, file_type="nomina"):
     try:
         wb = xlrd.open_workbook(file_contents=file_bytes)
     except Exception as e:
         print(f"  xlrd error: {e}", file=sys.stderr)
         return []
-
     ws = wb.sheet_by_index(0)
-
-    # Encontrar la primera fila de datos: columna A con RFC (longitud ≥ 12)
-    data_start = -1
-    for i in range(min(20, ws.nrows)):
-        val = str(ws.cell_value(i, COL_RFC)).strip()
-        if len(val) >= 12 and not val.replace(" ", "").isalpha():
-            data_start = i
-            break
-
-    if data_start < 0:
-        print("  No se encontró fila de datos (RFC en columna A)", file=sys.stderr)
-        return []
-
-    records = []
-    for i in range(data_start, ws.nrows):
-        try:
-            rfc = str(ws.cell_value(i, COL_RFC)).strip().upper()
-            if not rfc or len(rfc) < 12:
-                continue
-
-            periodo_raw = ws.cell_value(i, COL_PERIODO)
-            try:
-                periodo = str(int(float(str(periodo_raw))))
-            except Exception:
-                periodo = str(periodo_raw).strip()
-
-            if len(periodo) != 6:
-                continue
-
-            val_r   = float(ws.cell_value(i, COL_R)) if ws.ncols > COL_R else 0.0
-            val_o   = float(ws.cell_value(i, COL_O)) if ws.ncols > COL_O else 0.0
-            val_m   = float(ws.cell_value(i, COL_M)) if ws.ncols > COL_M else 0.0
-            contrib = str(ws.cell_value(i, COL_CONTRIB)).strip() if ws.ncols > COL_CONTRIB else ""
-
-            records.append({
-                "rfc": rfc, "periodo": periodo,
-                "recaudacion": val_r - val_o - val_m, "contrib": contrib
-            })
-        except Exception:
-            continue
-
-    return records
+    if file_type == "retencion":
+        return _parse_retencion(ws)
+    return _parse_nomina(ws)
 
 # ── Lógica de omisos ──────────────────────────────────────────────
 def prev_period(p):
@@ -289,9 +316,11 @@ def main():
         if mime == 'application/vnd.ms-excel' or name.endswith('.xls'):
             month_name = next((m for m in MONTH_NAMES if m in name), None)
             if month_name:
-                files.append({'id': f['id'], 'name': f['name'], 'num': MONTH_NAMES[month_name]})
+                file_type = 'retencion' if 'retencion' in name else 'nomina'
+                files.append({'id': f['id'], 'name': f['name'],
+                               'num': MONTH_NAMES[month_name], 'type': file_type})
 
-    files.sort(key=lambda f: f['num'])
+    files.sort(key=lambda f: (f['num'], f['type']))
 
     if not files:
         print("ERROR: No se encontraron archivos .xls en la carpeta", file=sys.stderr)
@@ -299,18 +328,17 @@ def main():
 
     print(f"Encontrados {len(files)} archivos: {[f['name'] for f in files]}")
 
-    # Descargar y parsear
-    all_month_data = {}
+    # Descargar y parsear — combinar nómina + retención por mes
+    all_month_data = defaultdict(list)
     for fi in files:
-        print(f"  Descargando {fi['name']}...")
+        print(f"  Descargando {fi['name']} [{fi['type']}]...")
         try:
             raw     = drive_download(fi['id'])
-            records = parse_xls(raw, fi['num'])
+            records = parse_xls(raw, fi['type'])
             print(f"    {len(records)} registros")
-            all_month_data[fi['num']] = records
+            all_month_data[fi['num']].extend(records)
         except Exception as e:
             print(f"    ERROR: {e}", file=sys.stderr)
-            all_month_data[fi['num']] = []
 
     # Calcular proyecciones
     print("Calculando proyecciones...")
