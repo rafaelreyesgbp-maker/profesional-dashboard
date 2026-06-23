@@ -374,13 +374,13 @@ function exportPNG(){html2canvas(document.querySelector('.content'),{scale:2,bac
 (function init(){
   const months=Object.keys(allData).map(Number).filter(n=>n>0);
   if(months.length){
+    // Mostrar datos pre-cargados mientras carga frescos
     populateMonthSel();
     renderDash(allData[String(Math.max(...months))]);
-    setStatus(lastUpdated?'Datos al '+lastUpdated:'Datos pre-cargados - Pulsa Actualizar para datos frescos');
     if(lastUpdated)document.getElementById('footerUpdated').textContent='Actualizado: '+lastUpdated;
-  }else{
-    setStatus('Pulsa "Actualizar" para cargar datos desde Google Drive');
   }
+  // Siempre cargar datos frescos de Drive al entrar
+  loadFromDrive();
 })();
 </script>
 </body>
