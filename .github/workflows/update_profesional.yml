@@ -2,8 +2,8 @@ name: Actualizar Dashboard Profesional
 
 on:
   schedule:
-    - cron: '0 15 * * 1-5'
-  workflow_dispatch:
+    - cron: '0 15 * * 1-5'  # Lunes-viernes 10 AM México (UTC-5)
+  workflow_dispatch:         # Permite correr manualmente desde GitHub
 
 jobs:
   actualizar:
