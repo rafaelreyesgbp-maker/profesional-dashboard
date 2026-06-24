@@ -366,6 +366,35 @@ def main():
     with open(HTML_FILE, 'r', encoding='utf-8') as f:
         html = f.read()
 
+    # Extraer datos existentes del HTML para comparar
+    existing_all_data = {}
+    for line in html.split('\n'):
+        if re.match(r'\s*(var|let|const)\s+allData\s*=\s*\{', line):
+            try:
+                m = re.match(r'\s*(?:var|let|const)\s+allData\s*=\s*(\{.*\});?\s*$', line)
+                if m:
+                    existing_all_data = json.loads(m.group(1))
+                    print(f"  Datos existentes: {len(existing_all_data)} mes(es)")
+            except Exception as e:
+                print(f"  Sin datos existentes comparables: {e}", file=sys.stderr)
+            break
+
+    # Mantener el mayor acumulado por mes; si no hay datos nuevos, conservar existentes
+    for key in list(all_data.keys()):
+        new_acum = all_data[key].get('acumulado_real', 0)
+        ex_acum  = existing_all_data.get(key, {}).get('acumulado_real', 0)
+        if new_acum <= ex_acum:
+            all_data[key] = existing_all_data[key]
+            print(f"  Mes {key}: manteniendo existente (${ex_acum:,.0f} >= ${new_acum:,.0f})")
+        else:
+            print(f"  Mes {key}: actualizando (${new_acum:,.0f} > ${ex_acum:,.0f})")
+
+    # Agregar meses existentes que no se calcularon en esta corrida
+    for key in existing_all_data:
+        if key not in all_data:
+            all_data[key] = existing_all_data[key]
+            print(f"  Mes {key}: conservando (no hubo archivos nuevos)")
+
     new_json = json.dumps(all_data, ensure_ascii=False, separators=(',', ':'))
 
     # Reemplazar allData línea por línea
