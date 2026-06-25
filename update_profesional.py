@@ -315,21 +315,18 @@ def main():
 
     files = []
     for f in raw_files:
-        name     = (f.get('name') or '').lower()
-        name_n   = normalize(f.get('name') or '')   # sin acentos
-        mime     = f.get('mimeType', '')
-        if mime == 'application/vnd.ms-excel' or name.endswith('.xls'):
-            month_name = next((m for m in MONTH_NAMES if m in name_n), None)
-            if month_name:
-                file_type = 'retencion' if 'retencion' in name_n else 'nomina'
-                print(f"  Detectado: {f['name']} → mes={month_name}, tipo={file_type}")
-                files.append({'id': f['id'], 'name': f['name'],
-                               'num': MONTH_NAMES[month_name], 'type': file_type})
+        name_n = normalize(f.get('name') or '')   # sin acentos, sin importar MIME type
+        month_name = next((m for m in MONTH_NAMES if m in name_n), None)
+        if month_name:
+            file_type = 'retencion' if 'retencion' in name_n else 'nomina'
+            print(f"  Detectado: {f['name']} (mime={f.get('mimeType','?')}) → mes={month_name}, tipo={file_type}")
+            files.append({'id': f['id'], 'name': f['name'],
+                           'num': MONTH_NAMES[month_name], 'type': file_type})
 
     files.sort(key=lambda f: (f['num'], f['type']))
 
     if not files:
-        print("ERROR: No se encontraron archivos .xls en la carpeta", file=sys.stderr)
+        print("ERROR: No se encontraron archivos con nombre de mes en la carpeta", file=sys.stderr)
         sys.exit(1)
 
     print(f"Encontrados {len(files)} archivos: {[f['name'] for f in files]}")
