@@ -383,9 +383,9 @@ def main():
     for key in list(all_data.keys()):
         new_acum = all_data[key].get('acumulado_real', 0)
         ex_acum  = existing_all_data.get(key, {}).get('acumulado_real', 0)
-        if new_acum <= ex_acum:
+        if new_acum < ex_acum:
             all_data[key] = existing_all_data[key]
-            print(f"  Mes {key}: manteniendo existente (${ex_acum:,.0f} >= ${new_acum:,.0f})")
+            print(f"  Mes {key}: manteniendo existente (${ex_acum:,.0f} > ${new_acum:,.0f})")
         else:
             print(f"  Mes {key}: actualizando (${new_acum:,.0f} > ${ex_acum:,.0f})")
 
