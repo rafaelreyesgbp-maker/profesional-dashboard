@@ -338,7 +338,8 @@ def main():
         try:
             raw     = drive_download(fi['id'])
             records = parse_xls(raw, fi['type'])
-            print(f"    {len(records)} registros")
+            suma    = sum(r['recaudacion'] for r in records)
+            print(f"    {len(records)} registros  →  suma recaudación: ${suma:,.0f}")
             all_month_data[fi['num']].extend(records)
         except Exception as e:
             print(f"    ERROR: {e}", file=sys.stderr)
