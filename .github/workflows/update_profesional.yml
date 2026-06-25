@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependencias
-        run: pip install requests xlrd
+        run: pip install requests xlrd openpyxl
 
       - name: Ejecutar script de actualización
         run: python update_profesional.py
