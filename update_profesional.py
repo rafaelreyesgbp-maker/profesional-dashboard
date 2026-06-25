@@ -74,63 +74,59 @@ RET_CONTRIB = 1   # Columna B
 RET_PERIODO = 4   # Columna E
 RET_IMP     = 13  # Columna N (IMPUESTO)
 
-def _find_data_start_rows(rows, rfc_col):
-    for i in range(min(20, len(rows))):
-        row = rows[i]
-        val = str(row[rfc_col] if rfc_col < len(row) else '').strip()
+def _find_data_start(ws, rfc_col):
+    for i in range(min(20, ws.nrows)):
+        val = str(ws.cell_value(i, rfc_col)).strip()
         if len(val) >= 12 and not val.replace(" ", "").isalpha():
             return i
     return -1
 
-def _cell(row, col, default=''):
-    return row[col] if col < len(row) and row[col] is not None else default
+def _periodo(raw):
+    """Convierte valor xlrd a string YYYYMM."""
+    if isinstance(raw, float):
+        return str(int(raw))
+    return str(raw).strip()
 
-def _parse_nomina_rows(rows):
-    data_start = _find_data_start_rows(rows, NOM_RFC)
+def _parse_nomina(ws):
+    data_start = _find_data_start(ws, NOM_RFC)
     if data_start < 0:
         print("  No se encontró fila de datos (nómina)", file=sys.stderr)
         return []
     records = []
-    for row in rows[data_start:]:
+    for i in range(data_start, ws.nrows):
         try:
-            rfc = str(_cell(row, NOM_RFC)).strip().upper()
+            rfc = str(ws.cell_value(i, NOM_RFC)).strip().upper()
             if not rfc or len(rfc) < 12:
                 continue
-            try:
-                periodo = str(int(float(str(_cell(row, NOM_PERIODO)))))
-            except Exception:
-                periodo = str(_cell(row, NOM_PERIODO)).strip()
+            periodo = _periodo(ws.cell_value(i, NOM_PERIODO))
             if len(periodo) != 6:
                 continue
-            val_r = float(_cell(row, NOM_R,   0) or 0)
-            val_o = float(_cell(row, NOM_O,   0) or 0)
-            val_m = float(_cell(row, NOM_M,   0) or 0)
-            contrib = str(_cell(row, NOM_CONTRIB)).strip()
+            val_r = float(ws.cell_value(i, NOM_R) or 0)
+            val_o = float(ws.cell_value(i, NOM_O) or 0)
+            val_m = float(ws.cell_value(i, NOM_M) or 0)
+            contrib = str(ws.cell_value(i, NOM_CONTRIB)).strip()
             records.append({"rfc": rfc, "periodo": periodo,
                              "recaudacion": val_r - val_o - val_m, "contrib": contrib})
         except Exception:
             continue
     return records
 
-def _parse_retencion_rows(rows):
-    data_start = _find_data_start_rows(rows, RET_RFC)
+def _parse_retencion(ws):
+    data_start = _find_data_start(ws, RET_RFC)
     if data_start < 0:
         print("  No se encontró fila de datos (retención)", file=sys.stderr)
         return []
     records = []
-    for row in rows[data_start:]:
+    for i in range(data_start, ws.nrows):
         try:
-            rfc = str(_cell(row, RET_RFC)).strip().upper()
+            rfc = str(ws.cell_value(i, RET_RFC)).strip().upper()
             if not rfc or len(rfc) < 12:
                 continue
-            try:
-                periodo = str(int(float(str(_cell(row, RET_PERIODO)))))
-            except Exception:
-                periodo = str(_cell(row, RET_PERIODO)).strip()
+            periodo = _periodo(ws.cell_value(i, RET_PERIODO))
             if len(periodo) != 6:
                 continue
-            imp    = float(_cell(row, RET_IMP, 0) or 0)
-            contrib = str(_cell(row, RET_CONTRIB)).strip()
+            imp = float(ws.cell_value(i, RET_IMP) or 0)
+            contrib = str(ws.cell_value(i, RET_CONTRIB)).strip()
             records.append({"rfc": rfc, "periodo": periodo,
                              "recaudacion": imp, "contrib": contrib})
         except Exception:
@@ -138,32 +134,12 @@ def _parse_retencion_rows(rows):
     return records
 
 def parse_xls(file_bytes, file_type="nomina"):
-    rows = None
-
-    # Intento 1: xlrd — maneja archivos .xls binarios (Excel 97-2003)
-    try:
-        wb = xlrd.open_workbook(file_contents=file_bytes)
-        ws = wb.sheet_by_index(0)
-        rows = [[ws.cell_value(i, j) for j in range(ws.ncols)] for i in range(ws.nrows)]
-        print(f"    [xlrd {ws.nrows} filas]", end=" ")
-    except Exception as e_xlrd:
-        print(f"  xlrd no pudo leer el archivo ({e_xlrd}) — intentando openpyxl...", file=sys.stderr)
-
-    # Intento 2: openpyxl — maneja archivos .xlsx (aunque tengan extensión .xls)
-    if rows is None:
-        try:
-            import io, openpyxl
-            wb2 = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-            ws2 = wb2.active
-            rows = [[cell.value for cell in row] for row in ws2.iter_rows()]
-            print(f"    [openpyxl {len(rows)} filas]", end=" ")
-        except Exception as e_opx:
-            print(f"  openpyxl tampoco pudo leer el archivo ({e_opx})", file=sys.stderr)
-            return []
-
+    wb = xlrd.open_workbook(file_contents=file_bytes)
+    ws = wb.sheet_by_index(0)
+    print(f"    [{ws.nrows} filas]", end=" ")
     if file_type == "retencion":
-        return _parse_retencion_rows(rows)
-    return _parse_nomina_rows(rows)
+        return _parse_retencion(ws)
+    return _parse_nomina(ws)
 
 # ── Lógica de omisos ──────────────────────────────────────────────
 def prev_period(p):
