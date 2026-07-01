@@ -5,9 +5,10 @@ Descarga archivos de nómina Profesional desde Google Drive,
 recalcula proyecciones y actualiza los datos embebidos en el HTML.
 """
 
-import json, re, sys, requests, xlrd, unicodedata
+import json, re, sys, requests, xlrd, unicodedata, statistics
 from datetime import datetime
 from collections import defaultdict
+from math import floor
 
 def normalize(s):
     """Elimina acentos y pasa a minúsculas para comparaciones robustas."""
@@ -243,12 +244,13 @@ def compute_month(month_num, all_month_data):
         if not ref_amounts:
             continue
 
-        avg = sum(ref_amounts) / len(ref_amounts)
-        est = avg * len(missing)
+        median_monthly   = statistics.median(ref_amounts)
+        importe_estimado = median_monthly * len(missing)
 
         seg = ('omisos_totales' if not has_2026
                else 'alta'       if cnt >= n_ref
-               else 'media'      if cnt >= 3
+               else 'media'      if cnt >= floor(n_ref * 0.75)
+               else 'baja'       if cnt >= 3
                else 'seguimiento')
 
         contrib        = rfc_contrib.get(rfc) or global_contrib.get(rfc) or ''
@@ -256,8 +258,8 @@ def compute_month(month_num, all_month_data):
 
         omisos.append({
             'rfc': rfc, 'contrib': contrib, 'count': cnt,
-            'avg': round(est), 'n_missing': len(missing),
-            'pending': pending_labels, 'seg': seg
+            'avg': round(importe_estimado), 'median': round(median_monthly),
+            'n_missing': len(missing), 'pending': pending_labels, 'seg': seg
         })
 
     omisos.sort(key=lambda o: -o['avg'])
@@ -297,6 +299,7 @@ def compute_month(month_num, all_month_data):
         'segmentos':         segments,
         'omisos': [
             {'rfc': o['rfc'], 'contrib': o['contrib'], 'avg': o['avg'],
+             'median': o.get('median', 0),
              'count': o['count'], 'nMissing': o['n_missing'],
              'pending': o['pending'], 'seg': o['seg']}
             for o in omisos[:5000]
