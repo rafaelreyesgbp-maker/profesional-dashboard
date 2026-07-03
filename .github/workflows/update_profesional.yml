@@ -2,7 +2,7 @@ name: Actualizar Dashboard Profesional
 
 on:
   schedule:
-    - cron: '0 14,16,18,20,22 * * 1-5'  # Lun-Vie cada 2 hrs: 9,11,13,15,17 hrs México (UTC-5 verano)
+    - cron: '0 13-21 * * 1-5'  # Lun-Vie cada hora: 8–16 hrs México (UTC-5 verano)
   workflow_dispatch:         # Permite correr manualmente desde GitHub
 
 jobs:
