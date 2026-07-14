@@ -135,12 +135,80 @@ def _parse_retencion(ws):
     return records
 
 def parse_xls(file_bytes, file_type="nomina"):
-    wb = xlrd.open_workbook(file_contents=file_bytes)
-    ws = wb.sheet_by_index(0)
-    print(f"    [{ws.nrows} filas]", end=" ")
-    if file_type == "retencion":
-        return _parse_retencion(ws)
-    return _parse_nomina(ws)
+    # Intento 1: xlrd — archivos .xls binarios (Excel 97-2003)
+    try:
+        wb = xlrd.open_workbook(file_contents=file_bytes)
+        ws = wb.sheet_by_index(0)
+        print(f"    [xlrd {ws.nrows} filas]", end=" ")
+        if file_type == "retencion":
+            return _parse_retencion(ws)
+        return _parse_nomina(ws)
+    except Exception as e_xlrd:
+        print(f"\n  xlrd falló ({e_xlrd}) — intentando openpyxl...", file=sys.stderr)
+
+    # Intento 2: openpyxl — archivos .xlsx
+    try:
+        import io, openpyxl
+        wb2 = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        ws2 = wb2.active
+        rows = [[cell.value for cell in row] for row in ws2.iter_rows()]
+        print(f"    [openpyxl {len(rows)} filas]", end=" ")
+
+        def _cell(row, col, default=''):
+            return row[col] if col < len(row) and row[col] is not None else default
+
+        def _find_rows(rfc_col):
+            for i in range(min(20, len(rows))):
+                val = str(_cell(rows[i], rfc_col, '')).strip()
+                if len(val) >= 12 and not val.replace(' ', '').isalpha():
+                    return i
+            return -1
+
+        if file_type == "retencion":
+            s = _find_rows(RET_RFC)
+            if s < 0:
+                return []
+            out = []
+            for row in rows[s:]:
+                rfc = str(_cell(row, RET_RFC)).strip().upper()
+                if not rfc or len(rfc) < 12:
+                    continue
+                p = str(_cell(row, RET_PERIODO, '')).strip()
+                try:
+                    p = str(int(float(p)))
+                except Exception:
+                    pass
+                if len(p) != 6:
+                    continue
+                imp = float(_cell(row, RET_IMP, 0) or 0)
+                out.append({'rfc': rfc, 'periodo': p, 'recaudacion': imp,
+                            'contrib': str(_cell(row, RET_CONTRIB)).strip()})
+            return out
+        else:
+            s = _find_rows(NOM_RFC)
+            if s < 0:
+                return []
+            out = []
+            for row in rows[s:]:
+                rfc = str(_cell(row, NOM_RFC)).strip().upper()
+                if not rfc or len(rfc) < 12:
+                    continue
+                p = str(_cell(row, NOM_PERIODO, '')).strip()
+                try:
+                    p = str(int(float(p)))
+                except Exception:
+                    pass
+                if len(p) != 6:
+                    continue
+                r = float(_cell(row, NOM_R, 0) or 0)
+                o = float(_cell(row, NOM_O, 0) or 0)
+                m = float(_cell(row, NOM_M, 0) or 0)
+                out.append({'rfc': rfc, 'periodo': p, 'recaudacion': r - o - m,
+                            'contrib': str(_cell(row, NOM_CONTRIB)).strip()})
+            return out
+    except Exception as e_opx:
+        print(f"  openpyxl también falló ({e_opx})", file=sys.stderr)
+        return []
 
 # ── Lógica de omisos ──────────────────────────────────────────────
 def prev_period(p):
@@ -181,6 +249,24 @@ def compute_month(month_num, all_month_data):
     n_prev      = len(prev_months)
 
     if n_prev < 2:
+        # Pagadores del mes (aunque no haya histórico suficiente para omisos)
+        pag_map = {}
+        for r in cur:
+            rfc = r.get('rfc', '')
+            if not valid_rfc(rfc):
+                continue
+            if rfc not in pag_map:
+                pag_map[rfc] = {'rfc': rfc, 'contrib': r.get('contrib', ''), 'total': 0.0, 'periodos': set()}
+            pag_map[rfc]['total'] += r['recaudacion']
+            if r.get('periodo') and len(str(r['periodo'])) == 6:
+                pag_map[rfc]['periodos'].add(str(r['periodo']))
+            if not pag_map[rfc]['contrib'] and r.get('contrib'):
+                pag_map[rfc]['contrib'] = r['contrib']
+        pagadores = sorted([
+            {'rfc': v['rfc'], 'contrib': v['contrib'], 'total': round(v['total']),
+             'periodos': [format_period(p) for p in sorted(v['periodos'])]}
+            for v in pag_map.values()
+        ], key=lambda x: -x['total'])
         return {
             'mes_label': MONTH_LABELS.get(month_num, str(month_num)),
             'mes_num': month_num, 'meta': meta,
@@ -190,7 +276,7 @@ def compute_month(month_num, all_month_data):
             'meta_cruzada': acumulado >= meta,
             'pct_acumulado': acumulado / meta * 100 if meta else 0,
             'pct_proyeccion': acumulado / meta * 100 if meta else 0,
-            'segmentos': {}, 'omisos': []
+            'segmentos': {}, 'omisos': [], 'pagadores': pagadores
         }
 
     # Paso 1: contar meses pagados y acumular importes por RFC (sin duplicar por mes)
@@ -285,6 +371,25 @@ def compute_month(month_num, all_month_data):
         s['monto'] = round(s['monto'])
         s['omisos'].sort(key=lambda x: -x['avg'])
 
+    # Pagadores del mes
+    pag_map = {}
+    for r in cur:
+        rfc = r.get('rfc', '')
+        if not valid_rfc(rfc):
+            continue
+        if rfc not in pag_map:
+            pag_map[rfc] = {'rfc': rfc, 'contrib': r.get('contrib', ''), 'total': 0.0, 'periodos': set()}
+        pag_map[rfc]['total'] += r['recaudacion']
+        if r.get('periodo') and len(str(r['periodo'])) == 6:
+            pag_map[rfc]['periodos'].add(str(r['periodo']))
+        if not pag_map[rfc]['contrib'] and r.get('contrib'):
+            pag_map[rfc]['contrib'] = r['contrib']
+    pagadores = sorted([
+        {'rfc': v['rfc'], 'contrib': v['contrib'], 'total': round(v['total']),
+         'periodos': [format_period(p) for p in sorted(v['periodos'])]}
+        for v in pag_map.values()
+    ], key=lambda x: -x['total'])
+
     return {
         'mes_label':         MONTH_LABELS.get(month_num, str(month_num)),
         'mes_num':           month_num,
@@ -304,7 +409,8 @@ def compute_month(month_num, all_month_data):
              'median': o['median'], 'count': o['count'],
              'nMissing': o['n_missing'], 'pending': o['pending'], 'seg': o['seg']}
             for o in omisos[:5000]
-        ]
+        ],
+        'pagadores': pagadores
     }
 
 # ── Main ──────────────────────────────────────────────────────────
